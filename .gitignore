@@ -1,0 +1,8 @@
+venv
+.env
+.ipynb_checkpoints
+*.json
+myindex
+*.ipynb
+*/__pycache__
+test.csv
