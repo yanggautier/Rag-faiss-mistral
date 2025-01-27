@@ -33,39 +33,79 @@ def clean_text(text):
     return text
 
 
-def get_agenda(event_type, start_year, location):
+def get_culture_event_agenda(location):
     """
-    Récupérer les données sur le site d'Opendatsoft
+    Récupérer les données d'évenèment culturel sur le site d'Opendatsoft en utilisant d'API
 
     Parameters:
-    event_type (str): type d'évenèment, exemple:  Tout public, musique, concert, théâtre, Recrutement, gratuit
-    start_year (int): l'année de début des évenèments, exemple:  2023, 2024
     location (str): la région, exemple: Île-de-France, Hauts-de-France
 
     Returns:
-    df (Dataframe): retourne un Pandas DataFrame
+    df (Dataframe): retourne un Pandas DataFrame des évenèments culturels nettoyés
     """
-    # Requête pour obtenir le nombre total d'objet
-    url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?limit=1&refine=keywords_fr%3A%22{event_type}%22&refine=firstdate_begin%3A%22{str(start_year)}%22&refine=location_region%3A%22{location}%22"
-    response = requests.get(url)
-    total_count = response.json()["total_count"]
 
-    # Requête des données d'agenda par 100
+    start_year = 2024
     results = []
-    for offset_index in range(int(total_count/100)+1):
-        offset_url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?limit=100&offset={str(offset_index * 100)}&refine=keywords_fr%3A%22{event_type}%22&refine=firstdate_begin%3A%22{str(start_year)}%22&refine=location_region%3A%22{location}%22" 
-        offset_response = requests.get(offset_url)
-        offset_results = offset_response.json()["results"]
-        results = results + offset_results
-        time.sleep(1)
+    event_list = ["cinema", 
+              "festival", "Festival",
+              "culture",  "CULTUREL",
+              "concert", "Concert","concerts",
+              "danse", 
+              "spectacle","Spectacle", 
+              "theatre","théâtre", "Théâtre",
+              "jazz",
+              "Exposition",
+              "animation","animations",
+              "rock",
+              "humour",
+              "jeu",
+              "ateliers", "Atelier", 
+              "peinture",
+              "cirque",
+              "chanson",
+              "lecture", "Lecture",
+              "livre",
+              "photographie"
+              "cinéma","Cinéma",
+              "film",
+              "conte",
+              "dessin",
+              "chant",
+              "art",
+              "Concert", 
+              "musique","Musique",
+              "exposition",
+              "poésie"]
+
+    for event_type in event_list:
+        url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?limit=1&refine=keywords_fr%3A%22{event_type}%22&refine=firstdate_begin%3A%22{str(start_year)}%22&refine=location_region%3A%22{location}%22" 
+        response = requests.get(url)
+        total_count = response.json()["total_count"]
+        
+        for offset_index in range(int(total_count/100)+1):
+            offset_url = f"https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records?limit=100&offset={str(offset_index * 100)}&refine=keywords_fr%3A%22{event_type}%22&refine=firstdate_begin%3A%222024%22&refine=location_region%3A%22%C3%8Ele-de-France%22" 
+            offset_response = requests.get(offset_url)
+            offset_results = offset_response.json()["results"]
+            results = results + offset_results
+            time.sleep(0.5)
 
     # Transformer les données obtenues et transformations de d données pour 
     df = pd.DataFrame.from_dict(results)
+
+    # Supprimer les doublons uniquement sur la colonne uid et les uid vides
+    df.drop_duplicates(subset="uid", inplace=True)
+    df.dropna(subset=["uid", "title_fr", "description_fr"], inplace=True)
+
+    df["firstdate_begin"] = pd.to_datetime(df["firstdate_begin"])
+    # Filtrer les dates de moins d'un an
+    date_limite = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=365)
+    df = df[df['firstdate_begin'] > date_limite]
+
+    df["firstdate_begin"] = df["firstdate_begin"].astype(str)
     df["description_fr"] = df['description_fr'].apply(clean_text)
     df["content"] = df["description_fr"] + " lieu: " + df["location_name"] + " adresse: " + df["location_address"] + " " +df["location_city"] + " " + df["location_postalcode"] + " dates: " +df["daterange_fr"] + " date de début: " + df["firstdate_begin"] + " date de fin:" + df["lastdate_end"] + " mots clés:" + df["keywords_fr"].astype(str)
 
     return df
-
 
 def get_example_for_index():
     """
@@ -81,13 +121,32 @@ def get_example_for_index():
 
     # Transformer les données obtenues et transformations de d données pour 
     df = pd.DataFrame.from_dict(results)
+
+    # Supprimer les doublons uniquement sur la colonne uid
+    df.drop_duplicates(subset="uid", inplace=True)
+    df.dropna(subset=["uid", "title_fr", "description_fr"], inplace=True)
+
+    df["firstdate_begin"] = pd.to_datetime(df["firstdate_begin"])
+
+    # Filtrer les dates de moins d'un an
+    date_limite = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=365)
+    df = df[df['firstdate_begin'] > date_limite]
+
     #df.drop_duplicates(inplace=True)
     df["description_fr"] = df['description_fr'].apply(clean_text)
     df["content"] = df["description_fr"] + " \n lieu: " + df["location_name"] + " \n adresse: " + df["location_address"] + " " +df["location_city"] + " " + df["location_postalcode"] + " \ndates: " +df["daterange_fr"]
 
     return df
+
 def get_documents(df):
-    """Transform DataFrame to Langchain Documents list"""
+    """Transform DataFrame to Langchain Documents list
+    
+    Parameters:
+    df (Dataframe): retourne un Pandas DataFrame
+
+    Returns:
+    documents (List): retourne une liste de Document Langchain
+    """
     documents = []
     for _, row in df.iterrows():
         # Vérifier si content n'est pas NaN
@@ -123,7 +182,6 @@ def get_documents(df):
 def splitter_documents(docs):
     """Fonction permets de découper des documents ou textes en plus petits documents
     
-
     Args:
         docs (List): Liste de Documents Langchain
 

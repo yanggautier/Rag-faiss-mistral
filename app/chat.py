@@ -36,14 +36,13 @@ class State(TypedDict):
     chat_history: list
     memory: dict
 
-
 def create_optimized_index(dimension, embeddings, documents, n_lists=100):
     """Create and train an optimized FAISS index with documents to be indexed
     
     Parameters:
     dimension (int): Vector dimension
     embeddings: Embedding model
-    documents (list): List of Langchain Documents to be indexed
+    documents (list): Liste de Document Langchain pour l'indexation
     n_lists (int): Number of Voronoi cells
     
     Returns:
@@ -61,8 +60,8 @@ def create_optimized_index(dimension, embeddings, documents, n_lists=100):
     
     # Train the index with same vectors we'll add
     index.train(vectors)
+    
     return index, vectors
-
 
 class FaissVectorStore:
     """
@@ -110,33 +109,6 @@ class FaissVectorStore:
 
         self.workflow = self._create_search_graph()
 
-
-    def create_optimized_index(dimension, embeddings, documents, n_lists=100):
-        """Create and train an optimized FAISS index with documents to be indexed
-        
-        Parameters:
-        dimension (int): Vector dimension
-        embeddings: Embedding model
-        documents (list): Liste de Document Langchain pour l'indexation
-        n_lists (int): Number of Voronoi cells
-        
-        Returns:
-        index: Trained FAISS index,
-        vectors: Document vectors for adding to index
-        """
-        # Create index
-        quantizer = faiss.IndexFlatL2(dimension)
-        index = faiss.IndexIVFFlat(quantizer, dimension, n_lists)
-        
-        # Create vectors for all documents
-        texts = [doc.page_content for doc in documents]
-        vectors = embeddings.embed_documents(texts)
-        vectors = np.array(vectors).astype('float32')
-        
-        # Train the index with same vectors we'll add
-        index.train(vectors)
-        
-        return index, vectors
     
     def _create_search_graph(self):
         """Création de graphe pour intéragir avec le bot."""
@@ -275,7 +247,8 @@ class FaissVectorStore:
         """
         if not documents:
             raise ValueError("Liste de documents ne peuvent pas être vides")
- 
+        
+        ## TODO récupérer les documents en local
         self.vector_store.add_documents(documents)
         self.vector_store.save_local(self.index_file)
         print(f"{len(documents)} documents ajoutés avec succès.")
@@ -348,7 +321,7 @@ def  main_function():
     
     embeddings = MistralAIEmbeddings(model="mistral-embed", api_key=api_key)
 
-    index_file = "myindex"
+    index_file = "culture_event_index"
 
     llm = ChatMistralAI(
         model="mistral-medium",
@@ -370,7 +343,7 @@ def  main_function():
 
     if args.command == 'add':
         # Ajout de documents dans la base vectorielle
-        df = get_agenda(event_type="Recrutement", start_year=2024, location="Île-de-France")
+        df = get_culture_event_agenda(location="Île-de-France")
         documents = get_documents(df)
         faiss_vector_store.add_documents(documents)
         
@@ -383,9 +356,10 @@ def  main_function():
     elif  args.command == 'search':
 
         query = args.query
-        faiss_vector_store.load_vectorstore(index_file)
 
         if os.path.exists(faiss_vector_store.index_file):
+
+            faiss_vector_store.load_vectorstore(index_file)
             # Exécution de la recherche
             result = faiss_vector_store.process_query(query=query)
             print("\nRéponse:", result["response"]["current_answer"])
@@ -394,6 +368,7 @@ def  main_function():
             print("Fichier de base vectorielle n'existe pas, merci de faire d'indexation d'abord! ")
 
     elif  args.command == 'clean':
+
         # Suppression de fichier d'indexation et le historique de conversation 
         faiss_vector_store.remove_index()
 

@@ -1,5 +1,6 @@
 langchain==0.3.14
 langgraph==0.2.64
+langchain_experimental==0.3.4
 faiss-cpu==1.9.0.post1
 pandas==2.2.3
 beautifulsoup4==4.12.3
